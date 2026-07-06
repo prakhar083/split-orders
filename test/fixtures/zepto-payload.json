@@ -1,0 +1,14 @@
+{
+  "orders": [
+    {
+      "order_id": "ZP-9001",
+      "placed_at": "2026-07-04T08:30:00.000Z",
+      "items": [
+        { "name": "Amul Milk 500ml", "quantity": 2, "price": 27 },
+        { "name": "Brown Bread", "quantity": 1, "price": 45 }
+      ],
+      "bill": { "item_total": 99, "tax": 5, "delivery_charge": 15, "discount": 19 },
+      "grand_total": 100
+    }
+  ]
+}
