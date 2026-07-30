@@ -15,14 +15,20 @@ async function api<T>(apiKey: string, path: string, init: RequestInit = {}): Pro
     ...init,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
-  if (!res.ok) throw new Error(`Splitwise API ${path} failed: HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Splitwise API ${path} failed: HTTP ${res.status}${body ? ` — ${body}` : ''}`);
+  }
   return res.json() as Promise<T>;
 }
 
 export async function findGroup(apiKey: string, name: string): Promise<SplitwiseGroup> {
   const data = await api<{ groups: SplitwiseGroup[] }>(apiKey, '/get_groups');
   const matches = data.groups.filter(g => g.name.toLowerCase() === name.toLowerCase());
-  if (matches.length === 0) throw new Error(`No group found with name "${name}"`);
+  if (matches.length === 0) {
+    const available = data.groups.map(g => g.name).join(', ') || '(none)';
+    throw new Error(`No group found with name "${name}". Available groups: ${available}`);
+  }
   if (matches.length > 1) throw new Error(`Multiple groups found with name "${name}"`);
   return matches[0];
 }
@@ -30,17 +36,22 @@ export async function findGroup(apiKey: string, name: string): Promise<Splitwise
 export async function createExpense(
   apiKey: string,
   group: SplitwiseGroup,
-  opts: { description: string; amount: number; date: string },
+  opts: { description: string; amount: number; date: string; details?: string },
 ): Promise<{ id: number }> {
-  const data = await api<{ expenses: { id: number }[] }>(apiKey, '/create_expense', {
+  const data = await api<{ expenses: { id: number }[]; errors?: unknown }>(apiKey, '/create_expense', {
     method: 'POST',
     body: JSON.stringify({
       cost: opts.amount.toFixed(2),
+      currency_code: 'INR',
       description: opts.description,
+      details: opts.details,
       date: opts.date,
       group_id: group.id,
       split_equally: true,
     }),
   });
+  if (!data.expenses || data.expenses.length === 0) {
+    throw new Error(`Splitwise rejected the expense: ${JSON.stringify(data.errors)}`);
+  }
   return { id: data.expenses[0].id };
 }
