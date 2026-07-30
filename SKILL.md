@@ -43,4 +43,27 @@ filter or post to Splitwise yet. (Blinkit is out of scope for this implementatio
    item (name × qty = lineTotal), and the charge breakdown. Note any order whose
    `reconcileCharges` flagged a mismatch.
 
-Stop here. Filtering and Splitwise are future phases — not yet implemented.
+## Filtering and splitting (v2)
+
+4. Save the fetched+merged `NormalizedOrder[]` to a temp JSON file, e.g.
+   `/tmp/split-orders-run.json`.
+5. Check for unmarked items:
+   `npx tsx src/review-cli.ts --orders /tmp/split-orders-run.json --rules rules.json`
+   If it prints any items, show them to the user grouped by category and ask
+   personal-or-shared for each. Write the answers as
+   `[{ "name": "...", "shared": true|false }, ...]` to a temp file and run:
+   `npx tsx src/review-cli.ts --apply <answers-path> --rules rules.json`
+6. Compute the split for each order (import `computeSplit` from `src/split.ts`
+   with the orders and `loadRules('rules.json')`); drop any `null` results
+   (nothing shared in that order).
+7. Ensure `config.json` exists (copy `config.example.json` and ask the user to
+   fill in `splitwiseApiKey` — from https://dev.splitwise.com — and
+   `splitwiseGroupName` if it doesn't). Read it, then call `findGroup` from
+   `src/splitwise.ts` with the configured group name.
+8. Show a full preview: for every `SplitResult`, print order id, date, shared
+   items, and `splitAmount`. Flag any order whose original `reconcileCharges`
+   check failed. Ask for **one confirmation** before posting anything.
+9. On confirmation, call `createExpense` for each `SplitResult` in order,
+   description `"<source> order <date> — <orderId>"`. If any call fails, stop
+   and report exactly which orders posted (with their new expense ids) and
+   which did not.
