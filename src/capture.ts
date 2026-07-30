@@ -8,7 +8,9 @@ import { sessionDir } from './session.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const START: Record<string, string> = {
-  amazon: 'https://www.amazon.in/gp/css/order-history',
+  // Amazon Now (quick-commerce grocery) orders list. Grocery-only, so no "now"
+  // badge filtering is needed.
+  amazon: 'https://www.amazon.in/tez/browse/yourOrders?qcbrand=qqfsWw9RkO',
   blinkit: 'https://blinkit.com/account/orders',
 };
 
