@@ -1,13 +1,15 @@
 ---
 name: split-orders
-description: Fetch recent orders from Zepto (official MCP) and Amazon Now (local Playwright), normalized into one list. v1 = data fetching only; filtering and Splitwise come later.
+description: Fetch recent orders from Zepto (official MCP) and Amazon Now (local Playwright), mark items personal or shared, then post the shared portion of each order to a Splitwise group as an equal split.
 ---
 
-# split-orders (v1: fetch layer)
+# split-orders
 
-Fetch a windowed set of recent orders from Zepto and Amazon Now and present them as
-one normalized list. **This version only fetches and shows orders.** It does not
-filter or post to Splitwise yet. (Blinkit is out of scope for this implementation.)
+Fetch a windowed set of recent orders from Zepto and Amazon Now, normalize them into
+one list, decide per item whether it is personal or shared, compute the shared amount
+per order, and post those as equal-split Splitwise expenses. The full flow is
+fetch → review → split → confirm → post. (Blinkit is out of scope for this
+implementation.)
 
 **Project directory (always cd here first — this skill may be invoked from any cwd):**
 `~/Desktop/Personal/split-orders`
@@ -43,27 +45,46 @@ filter or post to Splitwise yet. (Blinkit is out of scope for this implementatio
    item (name × qty = lineTotal), and the charge breakdown. Note any order whose
    `reconcileCharges` flagged a mismatch.
 
-## Filtering and splitting (v2)
+## Filtering and splitting
 
 4. Save the fetched+merged `NormalizedOrder[]` to a temp JSON file, e.g.
    `/tmp/split-orders-run.json`.
 5. Check for unmarked items:
    `npx tsx src/review-cli.ts --orders /tmp/split-orders-run.json --rules rules.json`
+   Output is a JSON object keyed by category. An empty object (`{}`) means nothing
+   is unmarked — that is the "no items to review" signal, not empty output.
    If it prints any items, show them to the user grouped by category and ask
    personal-or-shared for each. Write the answers as
    `[{ "name": "...", "shared": true|false }, ...]` to a temp file and run:
    `npx tsx src/review-cli.ts --apply <answers-path> --rules rules.json`
-6. Compute the split for each order (import `computeSplit` from `src/split.ts`
-   with the orders and `loadRules('rules.json')`); drop any `null` results
-   (nothing shared in that order).
+   Each answer may also carry an optional `"category"` (`grocery`,
+   `personal-hygiene`, `tobacco-alcohol`, `household`, `other`) to override the
+   auto-guessed category — use it when the user says a guessed category is wrong,
+   including for items that already have a saved rule.
+6. Compute the split:
+   `npx tsx src/split-cli.ts --split /tmp/split-orders-run.json --rules rules.json > /tmp/split-results.json`
+   This prints a `SplitResult[]` (orders with nothing shared, a zero, or a
+   negative shared amount are dropped automatically).
 7. Ensure `config.json` exists (copy `config.example.json` and ask the user to
    fill in `splitwiseApiKey` — from https://dev.splitwise.com — and
-   `splitwiseGroupName` if it doesn't). Read it, then call `findGroup` from
-   `src/splitwise.ts` with the configured group name.
-8. Show a full preview: for every `SplitResult`, print order id, date, shared
-   items, and `splitAmount`. Flag any order whose original `reconcileCharges`
-   check failed. Ask for **one confirmation** before posting anything.
-9. On confirmation, call `createExpense` for each `SplitResult` in order,
-   description `"<source> order <date> — <orderId>"`. If any call fails, stop
-   and report exactly which orders posted (with their new expense ids) and
-   which did not.
+   `splitwiseGroupName` if it doesn't). `src/split-cli.ts --post` validates the
+   config and resolves the group itself, and errors clearly if either field is
+   missing.
+8. Show a full preview from `/tmp/split-results.json`: for every `SplitResult`,
+   print `orderId`, `placedAt`, the shared items, `splitAmount` (the total posted
+   to Splitwise), and the per-person amount (`splitAmount` divided by the number
+   of group members). Note that `sharedRatio` is a fraction (shared subtotal ÷
+   order subtotal) used only for prorating the discount — never present it as a
+   rupee amount. Flag any order whose original `reconcileCharges` check failed.
+   Ask for **one confirmation** before posting anything.
+9. On confirmation:
+   `npx tsx src/split-cli.ts --post /tmp/split-results.json --config config.json`
+   Each expense posts in INR as an equal split, described
+   `"<source> order <placedAt> — <orderId>"` with `details` set to
+   `order:<source>:<orderId>`. Progress is streamed on stderr; the final JSON
+   array on stdout has one `{orderId, status, expenseId?, error?}` per attempt.
+   Posting stops at the first failure. If that happens, report to the user which
+   orderIds posted (with their expense ids) and which did not — and before any
+   re-run, remove the already-posted orders from the results file. Re-running the
+   same file as-is would double-post them; there is no automatic dedupe (the
+   `details` tag exists so a duplicate can be spotted in Splitwise by hand).
