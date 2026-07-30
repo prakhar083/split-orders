@@ -1,32 +1,83 @@
 import type { NormalizedOrder, OrderItem, Charges } from './schema.js';
 
-interface ZeptoItem { name: string; quantity: number; price: number }
-interface ZeptoBill { item_total: number; tax?: number; delivery_charge?: number; packaging_charge?: number; discount?: number }
-interface ZeptoOrder { order_id: string; placed_at: string; items: ZeptoItem[]; bill: ZeptoBill; grand_total: number }
+// Zepto's API returns all monetary values in paise (₹1 = 100).
+const P = (n: number | undefined): number => Math.round((n ?? 0)) / 100;
 
+interface ZeptoProduct {
+  productName: string;
+  quantityOrdered: number;
+  quantityFulfilled?: number;
+  unitSellingPrice: number; // paise
+  totalFinalSellingPrice: number; // paise
+}
+
+interface ZeptoShipment { products?: ZeptoProduct[] }
+
+interface ZeptoBillSummary {
+  itemTotal: number; // paise, post-MRP-discount selling total
+  totalBill: number; // paise, amount actually charged
+  totalSaved?: number; // paise, MRP savings (already reflected in itemTotal — NOT a subtractable discount)
+  deliveryCharge?: number; // paise (present only on fee-bearing orders)
+  handlingCharge?: number; // paise
+  tax?: number; // paise
+  tip?: number; // paise
+}
+
+interface ZeptoOrderDetail {
+  id: string;
+  code: string;
+  placedTime: string;
+  grandTotalAmount: number; // paise
+  billSummary?: ZeptoBillSummary;
+  shipments?: ZeptoShipment[];
+}
+
+export function mapZeptoOrderDetail(o: ZeptoOrderDetail): NormalizedOrder {
+  const products = (o.shipments ?? []).flatMap(s => s.products ?? []);
+  const items: OrderItem[] = products.map(p => ({
+    name: p.productName,
+    quantity: p.quantityOrdered,
+    unitPrice: P(p.unitSellingPrice),
+    lineTotal: P(p.totalFinalSellingPrice),
+  }));
+
+  const b = o.billSummary ?? ({} as ZeptoBillSummary);
+  const subtotal = P(b.itemTotal);
+  const charges: Charges = { subtotal };
+  if (b.deliveryCharge != null) charges.deliveryFee = P(b.deliveryCharge);
+  if (b.handlingCharge != null) charges.packagingFee = P(b.handlingCharge);
+  if (b.tax != null) charges.taxes = P(b.tax);
+  if (b.tip != null) charges.tip = P(b.tip);
+
+  const grandTotal = b.totalBill != null ? P(b.totalBill) : P(o.grandTotalAmount);
+
+  // Any coupon/other reduction shows up as the residual between the charged
+  // components and the grand total. (totalSaved is MRP savings, already inside
+  // itemTotal, so it is deliberately not used here.)
+  const gross =
+    subtotal + (charges.deliveryFee ?? 0) + (charges.packagingFee ?? 0) + (charges.taxes ?? 0) + (charges.tip ?? 0);
+  const residual = +(gross - grandTotal).toFixed(2);
+  if (residual > 0.01) charges.discount = residual;
+
+  return {
+    source: 'zepto',
+    orderId: o.code || o.id,
+    placedAt: new Date(o.placedTime).toISOString(),
+    items,
+    charges,
+    grandTotal,
+    currency: 'INR',
+    raw: o,
+  };
+}
+
+/**
+ * Map Zepto order-detail payloads to NormalizedOrder[].
+ * Accepts either an array of order-detail objects, or `{ orders: [...] }`.
+ */
 export function mapZeptoOrders(payload: unknown): NormalizedOrder[] {
-  const orders = (payload as { orders?: ZeptoOrder[] })?.orders ?? [];
-  return orders.map((o): NormalizedOrder => {
-    const items: OrderItem[] = o.items.map(i => ({
-      name: i.name,
-      quantity: i.quantity,
-      unitPrice: i.price,
-      lineTotal: +(i.price * i.quantity).toFixed(2),
-    }));
-    const charges: Charges = { subtotal: o.bill.item_total };
-    if (o.bill.tax != null) charges.taxes = o.bill.tax;
-    if (o.bill.delivery_charge != null) charges.deliveryFee = o.bill.delivery_charge;
-    if (o.bill.packaging_charge != null) charges.packagingFee = o.bill.packaging_charge;
-    if (o.bill.discount != null) charges.discount = o.bill.discount;
-    return {
-      source: 'zepto',
-      orderId: o.order_id,
-      placedAt: new Date(o.placed_at).toISOString(),
-      items,
-      charges,
-      grandTotal: o.grand_total,
-      currency: 'INR',
-      raw: o,
-    };
-  });
+  const details: ZeptoOrderDetail[] = Array.isArray(payload)
+    ? (payload as ZeptoOrderDetail[])
+    : ((payload as { orders?: ZeptoOrderDetail[] })?.orders ?? []);
+  return details.map(mapZeptoOrderDetail);
 }

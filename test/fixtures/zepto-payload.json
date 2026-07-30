@@ -1,14 +1,53 @@
-{
-  "orders": [
-    {
-      "order_id": "ZP-9001",
-      "placed_at": "2026-07-04T08:30:00.000Z",
-      "items": [
-        { "name": "Amul Milk 500ml", "quantity": 2, "price": 27 },
-        { "name": "Brown Bread", "quantity": 1, "price": 45 }
-      ],
-      "bill": { "item_total": 99, "tax": 5, "delivery_charge": 15, "discount": 19 },
-      "grand_total": 100
-    }
-  ]
-}
+[
+  {
+    "orderId": "019f6a4b-e569-7ca4-ae50-079f360b2aed",
+    "id": "019f6a4b-e569-7ca4-ae50-079f360b2aed",
+    "code": "KSJVKBLAJ06551",
+    "orderType": "DELIVERY",
+    "formattedStatus": "DELIVERED",
+    "placedTime": "2026-07-16T09:39:46.879078Z",
+    "grandTotalAmount": 56000,
+    "grandTotalAmountPreDiscount": 61900,
+    "totalRefundAmount": 0,
+    "itemQuantityCount": 2,
+    "shipments": [
+      {
+        "shipmentCode": "KSJVKBLAJ06551A",
+        "status": "DELIVERED",
+        "products": [
+          {
+            "id": "482ff22a-023d-4abc-86b1-f4b26f0ebc55",
+            "productName": "Classic Double Burst Cigarette",
+            "brand": "Classic",
+            "packsize": "1 pack (20 pcs)",
+            "quantityOrdered": 1,
+            "quantityFulfilled": 1,
+            "quantityRejected": 0,
+            "unitMRP": 48000,
+            "unitSellingPrice": 48000,
+            "totalMRP": 48000,
+            "totalFinalSellingPrice": 48000,
+            "totalRefundAmount": 0,
+            "status": "DELIVERED"
+          },
+          {
+            "id": "7e2e45c3-9fb3-4c06-a396-5ee4d24a669f",
+            "productName": "Amul High Protein Cup Dahi",
+            "brand": "Amul",
+            "packsize": "1 pc (400 g)",
+            "quantityOrdered": 1,
+            "quantityFulfilled": 1,
+            "quantityRejected": 0,
+            "unitMRP": 8000,
+            "unitSellingPrice": 8000,
+            "totalMRP": 8000,
+            "totalFinalSellingPrice": 8000,
+            "totalRefundAmount": 0,
+            "status": "DELIVERED"
+          }
+        ]
+      }
+    ],
+    "billSummary": { "itemTotal": 56000, "totalBill": 56000, "totalSaved": 5900 }
+  }
+]

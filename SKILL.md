@@ -23,8 +23,12 @@ not filter or post to Splitwise yet.
 Ask the user for the window (a `--since` date and/or a `--limit` count) and which
 sources to include.
 
-1. **Zepto** (if included): call the Zepto MCP order-history tool, then map it:
-   `echo '<mcp-payload-json>' | npx tsx src/cli.ts --map-zepto`
+1. **Zepto** (if included): call `mcp__zepto__list_order_history` to get order ids
+   within the window, then `mcp__zepto__get_order_detail` for each id. Collect the
+   detail objects into a JSON array and map them:
+   `echo '[<order-detail>, …]' | npx tsx src/cli.ts --map-zepto`
+   (Amounts are in paise; the mapper converts to rupees. Order id shown is the
+   human `code`, e.g. `KSJVKBLAJ06551`.)
 2. **Amazon / Blinkit** (if included):
    `npx tsx src/cli.ts --sources amazon,blinkit --since <ISO> --limit <N>`
    (A visible browser opens if the saved session has expired — let the user log in.)
