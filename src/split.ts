@@ -12,7 +12,7 @@ export interface SplitResult {
   sharedItems: OrderItem[];
   personalItems: OrderItem[];
   splitAmount: number;
-  share: number;
+  sharedRatio: number;
 }
 
 export function computeSplit(order: NormalizedOrder, rules: Rules): SplitResult | null {
@@ -27,13 +27,14 @@ export function computeSplit(order: NormalizedOrder, rules: Rules): SplitResult 
   if (sharedSubtotal === 0) return null;
 
   const totalSubtotal = order.charges.subtotal;
-  const share = totalSubtotal > 0 ? sharedSubtotal / totalSubtotal : 0;
+  const sharedRatio = totalSubtotal > 0 ? Math.min(1, sharedSubtotal / totalSubtotal) : 0;
 
   const c = order.charges;
   const fullySharedFees = (c.deliveryFee ?? 0) + (c.packagingFee ?? 0) + (c.taxes ?? 0) + (c.tip ?? 0);
-  const proratedDiscount = (c.discount ?? 0) * share;
+  const proratedDiscount = (c.discount ?? 0) * sharedRatio;
 
   const splitAmount = round2(sharedSubtotal + fullySharedFees - proratedDiscount);
+  if (splitAmount <= 0) return null;
 
   return {
     orderId: order.orderId,
@@ -42,6 +43,6 @@ export function computeSplit(order: NormalizedOrder, rules: Rules): SplitResult 
     sharedItems,
     personalItems,
     splitAmount,
-    share,
+    sharedRatio,
   };
 }

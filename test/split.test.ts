@@ -51,8 +51,43 @@ describe('computeSplit', () => {
     // share = 80/560 = 0.142857...
     // proratedDiscount = 56 * 0.142857 = 8
     // splitAmount = 80 + 20 - 8 = 92
-    expect(result?.share).toBeCloseTo(80 / 560, 6);
+    expect(result?.sharedRatio).toBeCloseTo(80 / 560, 6);
     expect(result?.splitAmount).toBe(92);
+  });
+
+  it('returns null when a full-value discount drives splitAmount to zero', () => {
+    const order: NormalizedOrder = {
+      ...baseOrder,
+      items: [{ name: 'Amul Dahi', quantity: 1, unitPrice: 200, lineTotal: 200 }],
+      charges: { subtotal: 200, discount: 200 },
+      grandTotal: 0,
+    };
+    const rules: Rules = { 'Amul Dahi': { category: 'grocery', shared: true } };
+    expect(computeSplit(order, rules)).toBeNull();
+  });
+
+  it('returns null when the discount exceeds the shared subtotal (negative amount)', () => {
+    const order: NormalizedOrder = {
+      ...baseOrder,
+      items: [{ name: 'Amul Dahi', quantity: 1, unitPrice: 100, lineTotal: 100 }],
+      charges: { subtotal: 100, discount: 150 },
+      grandTotal: 0,
+    };
+    const rules: Rules = { 'Amul Dahi': { category: 'grocery', shared: true } };
+    expect(computeSplit(order, rules)).toBeNull();
+  });
+
+  it('clamps sharedRatio to 1 when item line totals exceed charges.subtotal', () => {
+    const order: NormalizedOrder = {
+      ...baseOrder,
+      items: [{ name: 'Amul Dahi', quantity: 1, unitPrice: 200, lineTotal: 200 }],
+      charges: { subtotal: 100, discount: 50 },
+      grandTotal: 150,
+    };
+    const rules: Rules = { 'Amul Dahi': { category: 'grocery', shared: true } };
+    const result = computeSplit(order, rules);
+    expect(result?.sharedRatio).toBe(1);
+    expect(result?.splitAmount).toBe(150);
   });
 
   it('adds fully-shared fees even when share is 100%', () => {
