@@ -7,8 +7,13 @@ export interface OrderRef { orderId: string; placedAt: string; grandTotal: numbe
 
 // Amazon Now (quick-commerce grocery) orders list — grocery-only, so no "now"
 // badge filtering is needed.
-const ORDERS_URL = 'https://www.amazon.in/tez/browse/yourOrders?qcbrand=qqfsWw9RkO';
-const AMAZON_LOGIN: LoginConfig = { loginUrlPattern: /\/ap\/signin/, authMarker: 'main' };
+const QCBRAND = 'qqfsWw9RkO';
+const ORDERS_URL = `https://www.amazon.in/tez/browse/yourOrders?qcbrand=${QCBRAND}`;
+const orderDetailUrl = (orderId: string): string =>
+  `https://www.amazon.in/tez/browse/orderTracking?qcbrand=${QCBRAND}&orderID=${orderId}`;
+// 'main' matched the sign-in page too (too generic), so the login-wait resolved
+// instantly without a real login. "Your Orders" only renders once authenticated.
+const AMAZON_LOGIN: LoginConfig = { loginUrlPattern: /\/ap\/signin/, authMarker: 'text=/Your Orders/i' };
 
 const ORDER_NO = /40[0-9]-\d{7}-\d{7}/;
 
@@ -58,14 +63,19 @@ export function parseAmazonNowDetail(html: string): NormalizedOrder {
   const text = flatText(html);
   const orderId = (text.match(/#(40[0-9]-\d{7}-\d{7})/) ?? [])[1] ?? '';
 
-  const dm = text.match(/Order placed\s*(?:[A-Za-z]+,\s*)?(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+at\s+([\d:]+\s*[ap]m)/i);
+  // Date order varies ("29 July 2026" vs "July 29, 2026") depending on how Amazon
+  // renders it, so capture the date chunk generically and let Date() parse it.
+  const dm = text.match(/Order placed\s*(?:[A-Za-z]+,\s*)?(.+?)\s+at\s+([\d:]+\s*[ap]m)/i);
   const placedAt = dm ? new Date(`${dm[1]} ${dm[2]}`).toISOString() : '';
 
   // Priced item rows live between "N items in order" and "Bill summary".
   const segMatch = text.match(/items in order(.*?)Bill summary/i);
   const seg = segMatch ? segMatch[1] : text;
   const items: OrderItem[] = [];
-  const itemRe = /([^₹]+?)\s*\.\s*(\d+)\s*unit\s*((?:₹[\d,]+)+)/g;
+  // Flattening loses the boundary between a product name and its pack size
+  // (e.g. "Corn Starch (Cornflour)500 g"), so the name capture stops right
+  // before a size token (digit+unit, or "Pack ") instead of swallowing it.
+  const itemRe = /([^₹]+?)(?:\d+(?:\.\d+)?\s?(?:g|kg|ml|l|pcs?)\b|Pack\s)[^₹]*?\s*\.\s*(\d+)\s*units?\s*((?:₹[\d,]+)+)/gi;
   let im: RegExpExecArray | null;
   while ((im = itemRe.exec(seg))) {
     const name = im[1].replace(/\s+/g, ' ').trim();
@@ -119,12 +129,13 @@ export async function fetchAmazonOrders(opts: { since?: string; limit?: number }
     const refs = applyWindow(parseAmazonOrderList(await page.content()), opts);
     const orders: NormalizedOrder[] = [];
     for (const ref of refs) {
-      const card = page.locator(`[role="button"]:has-text("${ref.orderId}")`).first();
-      await card.click();
+      await page.goto(orderDetailUrl(ref.orderId), { waitUntil: 'domcontentloaded' });
+      // The order-tracking page only shows a summary; the itemized bill lives in
+      // a client-side panel that's in the DOM but hidden until this button is
+      // clicked (it's a `role="link"` button, not a real navigable href).
+      await page.getByText('View order details', { exact: true }).first().click({ timeout: 15_000 }).catch(() => undefined);
       await page.waitForSelector('text=/Bill summary/i', { timeout: 30_000 });
       orders.push(parseAmazonNowDetail(await page.content()));
-      await page.goBack({ waitUntil: 'domcontentloaded' });
-      await page.waitForSelector(`text=${ref.orderId}`, { timeout: 30_000 }).catch(() => undefined);
     }
     return orders;
   } finally {

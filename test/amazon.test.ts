@@ -6,6 +6,10 @@ import { reconcileCharges } from '../src/schema.js';
 // Real captured pages from Amazon Now (tez) — grocery quick-commerce.
 const list = readFileSync(new URL('./fixtures/amazon-list.html', import.meta.url), 'utf8');
 const detail = readFileSync(new URL('./fixtures/amazon-detail.html', import.meta.url), 'utf8');
+// Reproduces real-world text patterns a live fetch hit and this fixture didn't:
+// a "N units" (plural, qty > 1) row, an item with only one price (no MRP shown),
+// and a "Month D, YYYY" date order instead of "D Month YYYY".
+const detail2 = readFileSync(new URL('./fixtures/amazon-detail-2.html', import.meta.url), 'utf8');
 
 describe('parseAmazonOrderList', () => {
   it('extracts real order refs and skips cancelled/₹0 orders', () => {
@@ -49,5 +53,24 @@ describe('parseAmazonNowDetail', () => {
   it('parses the placed-at date with year', () => {
     const o = parseAmazonNowDetail(detail);
     expect(o.placedAt.startsWith('2026-07-29')).toBe(true);
+  });
+
+  it('handles a plural "N units" row, a single-price item, and month-first dates', () => {
+    const o = parseAmazonNowDetail(detail2);
+    expect(o.orderId).toBe('402-6686440-5103514');
+    expect(o.items).toHaveLength(7);
+    // "2 units" (plural) must not be dropped, and no digits from its second
+    // price should leak into the following item's name.
+    expect(o.items[0]).toMatchObject({ name: 'India Gate Classic Pure Basmati Rice', quantity: 2, lineTotal: 514 });
+    expect(o.items[1].name).toBe('Eastern Chicken Masala');
+    // An item with only one price (no struck-through MRP) still parses.
+    expect(o.items[3]).toMatchObject({ name: 'Coca-Cola Zero Sugar Soft Drink Can', quantity: 1, lineTotal: 40 });
+    const itemsSum = o.items.reduce((s, i) => s + i.lineTotal, 0);
+    expect(itemsSum).toBe(986);
+    expect(o.charges.subtotal).toBe(986);
+    expect(o.grandTotal).toBe(986);
+    expect(reconcileCharges(o).ok).toBe(true);
+    // "Wed, July 23, 2026 at 9:24 pm" — month before day, unlike the other fixture.
+    expect(o.placedAt.startsWith('2026-07-23')).toBe(true);
   });
 });
