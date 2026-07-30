@@ -3,8 +3,8 @@ import { parseArgs, validateWindow } from '../src/cli.js';
 
 describe('parseArgs', () => {
   it('parses sources, since, and limit', () => {
-    const a = parseArgs(['--sources', 'amazon,blinkit', '--since', '2026-07-01', '--limit', '5']);
-    expect(a).toEqual({ sources: ['amazon', 'blinkit'], since: '2026-07-01', limit: 5, mapZepto: false });
+    const a = parseArgs(['--sources', 'amazon', '--since', '2026-07-01', '--limit', '5']);
+    expect(a).toEqual({ sources: ['amazon'], since: '2026-07-01', limit: 5, mapZepto: false });
   });
   it('recognizes --map-zepto mode', () => {
     expect(parseArgs(['--map-zepto']).mapZepto).toBe(true);

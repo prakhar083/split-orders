@@ -1,5 +1,4 @@
 import { fetchAmazonOrders } from './amazon.js';
-import { fetchBlinkitOrders } from './blinkit.js';
 import { mapZeptoOrders } from './zepto.js';
 import type { NormalizedOrder } from './schema.js';
 
@@ -46,10 +45,6 @@ async function main(): Promise<void> {
   if (args.sources.includes('amazon')) {
     try { orders.push(...(await fetchAmazonOrders(args))); }
     catch (e) { errors.push(`amazon: ${(e as Error).message}`); }
-  }
-  if (args.sources.includes('blinkit')) {
-    try { orders.push(...(await fetchBlinkitOrders(args))); }
-    catch (e) { errors.push(`blinkit: ${(e as Error).message}`); }
   }
   if (errors.length) console.error(errors.join('\n'));
   process.stdout.write(JSON.stringify(orders, null, 2));
