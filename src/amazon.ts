@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import type { Page } from 'playwright';
 import { parseINR, applyWindow } from './util.js';
 import { openSession, type LoginConfig } from './session.js';
 import type { NormalizedOrder, OrderItem, Charges } from './schema.js';
@@ -115,19 +116,48 @@ export function parseAmazonNowDetail(html: string): NormalizedOrder {
   return { source: 'amazon', orderId, placedAt, items, charges, grandTotal, currency: 'INR', raw: { html } };
 }
 
+// The orders list has no "Load more" button (there is none — confirmed by live
+// inspection); it lazy-loads via an inner scrollable container (not the window)
+// as that container is scrolled to its bottom. Scrolls every overflow:auto/scroll
+// element found, plus the window, since which container holds the list isn't
+// pinned to a stable selector.
+async function scrollForMore(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const all = Array.from(document.body.querySelectorAll<HTMLElement>('*'));
+    for (const el of all) {
+      const style = getComputedStyle(el);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 50) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+}
+
 export async function fetchAmazonOrders(opts: { since?: string; limit?: number }): Promise<NormalizedOrder[]> {
   const { context, page } = await openSession('amazon', ORDERS_URL, AMAZON_LOGIN, { headless: true });
   try {
     await page.waitForSelector(`text=/${ORDER_NO.source}/`, { timeout: 30_000 }).catch(() => undefined);
 
-    // Load more pages until we plausibly have enough (bounded to avoid runaway).
-    for (let i = 0; i < 20; i++) {
+    // Keep scrolling until: we plausibly have enough for the requested limit,
+    // we've scrolled past the requested --since date, or the list stops growing
+    // (reached the true end of history) for several consecutive rounds.
+    let prevCount = 0;
+    let stableRounds = 0;
+    for (let i = 0; i < 60; i++) {
       const refs = parseAmazonOrderList(await page.content());
       if (opts.limit != null && refs.length >= opts.limit) break;
-      const more = page.locator('text=/See more|Load more/i').first();
-      if (!(await more.count())) break;
-      await more.click().catch(() => undefined);
-      await page.waitForTimeout(1500);
+      const oldest = refs[refs.length - 1]?.placedAt;
+      if (opts.since && oldest && oldest < new Date(opts.since).toISOString()) break;
+      if (refs.length === prevCount) {
+        stableRounds++;
+        if (stableRounds >= 5) break;
+      } else {
+        stableRounds = 0;
+      }
+      prevCount = refs.length;
+      await scrollForMore(page);
+      await page.waitForTimeout(1_200);
     }
 
     const refs = applyWindow(parseAmazonOrderList(await page.content()), opts);
