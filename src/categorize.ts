@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import type { NormalizedOrder } from './schema.js';
 
 export type Category = 'grocery' | 'personal-hygiene' | 'tobacco-alcohol' | 'household' | 'other';
 
@@ -37,7 +38,7 @@ export interface DedupedItem {
 }
 
 export function dedupeItems(
-  orders: { items: { name: string }[] }[],
+  orders: NormalizedOrder[],
   rules: Rules,
 ): DedupedItem[] {
   const seen = new Map<string, DedupedItem>();
