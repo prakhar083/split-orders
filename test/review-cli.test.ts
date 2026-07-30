@@ -34,4 +34,22 @@ describe('apply mode merges answers into rules', () => {
     expect(rules['Amul Dahi']).toEqual({ category: 'grocery', shared: true });
     expect(rules['Classic Double Burst Cigarette']).toEqual({ category: 'tobacco-alcohol', shared: false });
   });
+
+  it('uses an explicit category override instead of the guess', () => {
+    saveRules(RULES, {});
+    writeFileSync(ANSWERS, JSON.stringify([
+      { name: 'Amul Dahi', shared: true, category: 'household' },
+    ]));
+    applyAnswers(ANSWERS, RULES);
+    expect(loadRules(RULES)['Amul Dahi']).toEqual({ category: 'household', shared: true });
+  });
+
+  it('lets a correction overwrite a previously wrong category', () => {
+    saveRules(RULES, { 'Mystery Item': { category: 'other', shared: false } });
+    writeFileSync(ANSWERS, JSON.stringify([
+      { name: 'Mystery Item', shared: true, category: 'grocery' },
+    ]));
+    applyAnswers(ANSWERS, RULES);
+    expect(loadRules(RULES)['Mystery Item']).toEqual({ category: 'grocery', shared: true });
+  });
 });

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dedupeItems, loadRules, saveRules, guessCategory, type Rules } from './categorize.js';
+import { dedupeItems, loadRules, saveRules, guessCategory, type Category, type Rules } from './categorize.js';
 import type { NormalizedOrder } from './schema.js';
 
 export function parseReviewArgs(argv: string[]): { ordersPath?: string; rulesPath: string; applyPath?: string } {
@@ -14,9 +14,13 @@ export function parseReviewArgs(argv: string[]): { ordersPath?: string; rulesPat
 }
 
 export function applyAnswers(applyPath: string, rulesPath: string): void {
-  const answers = JSON.parse(readFileSync(applyPath, 'utf8')) as { name: string; shared: boolean }[];
+  const answers = JSON.parse(readFileSync(applyPath, 'utf8')) as {
+    name: string;
+    shared: boolean;
+    category?: Category;
+  }[];
   const rules: Rules = loadRules(rulesPath);
-  for (const a of answers) rules[a.name] = { category: guessCategory(a.name), shared: a.shared };
+  for (const a of answers) rules[a.name] = { category: a.category ?? guessCategory(a.name), shared: a.shared };
   saveRules(rulesPath, rules);
 }
 
