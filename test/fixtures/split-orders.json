@@ -1,0 +1,10 @@
+[
+  {
+    "source": "zepto", "orderId": "ORD-1", "placedAt": "2026-07-16T09:39:46.879Z",
+    "items": [
+      { "name": "Amul Dahi", "quantity": 1, "unitPrice": 80, "lineTotal": 80 },
+      { "name": "Classic Double Burst Cigarette", "quantity": 1, "unitPrice": 480, "lineTotal": 480 }
+    ],
+    "charges": { "subtotal": 560 }, "grandTotal": 560, "currency": "INR"
+  }
+]
