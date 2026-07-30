@@ -10,6 +10,9 @@ const detail = readFileSync(new URL('./fixtures/amazon-detail.html', import.meta
 // a "N units" (plural, qty > 1) row, an item with only one price (no MRP shown),
 // and a "Month D, YYYY" date order instead of "D Month YYYY".
 const detail2 = readFileSync(new URL('./fixtures/amazon-detail-2.html', import.meta.url), 'utf8');
+// Reproduces a real bug: a 1-item order says "1 item in order" (singular),
+// preceded by an unrelated "lost connection" banner earlier on the page.
+const detailSingle = readFileSync(new URL('./fixtures/amazon-detail-single-item.html', import.meta.url), 'utf8');
 
 describe('parseAmazonOrderList', () => {
   it('extracts real order refs and skips cancelled/₹0 orders', () => {
@@ -72,5 +75,14 @@ describe('parseAmazonNowDetail', () => {
     expect(reconcileCharges(o).ok).toBe(true);
     // "Wed, July 23, 2026 at 9:24 pm" — month before day, unlike the other fixture.
     expect(o.placedAt.startsWith('2026-07-23')).toBe(true);
+  });
+
+  it('handles a singular "1 item in order" without leaking preceding banner text', () => {
+    const o = parseAmazonNowDetail(detailSingle);
+    expect(o.items).toHaveLength(1);
+    expect(o.items[0]).toMatchObject({ name: "Nandu's Boneless Chicken Breast", quantity: 1, lineTotal: 249 });
+    expect(o.charges.subtotal).toBe(249);
+    expect(o.grandTotal).toBe(249);
+    expect(reconcileCharges(o).ok).toBe(true);
   });
 });

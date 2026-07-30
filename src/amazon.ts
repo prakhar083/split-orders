@@ -68,9 +68,13 @@ export function parseAmazonNowDetail(html: string): NormalizedOrder {
   const dm = text.match(/Order placed\s*(?:[A-Za-z]+,\s*)?(.+?)\s+at\s+([\d:]+\s*[ap]m)/i);
   const placedAt = dm ? new Date(`${dm[1]} ${dm[2]}`).toISOString() : '';
 
-  // Priced item rows live between "N items in order" and "Bill summary".
-  const segMatch = text.match(/items in order(.*?)Bill summary/i);
-  const seg = segMatch ? segMatch[1] : text;
+  // Priced item rows live between "N item(s) in order" and "Bill summary".
+  // A single-item order says "1 item in order" (singular) — without the
+  // optional 's', the match fails and falls back to the WHOLE page text,
+  // picking up unrelated banner text (e.g. a lost-connection notice) as items.
+  const segMatch = text.match(/items? in order(.*?)Bill summary/i);
+  if (!segMatch) throw new Error(`Amazon order ${orderId}: could not locate the items section`);
+  const seg = segMatch[1];
   const items: OrderItem[] = [];
   // Flattening loses the boundary between a product name and its pack size
   // (e.g. "Corn Starch (Cornflour)500 g"), so the name capture stops right
