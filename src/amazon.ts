@@ -1,6 +1,5 @@
-import * as cheerio from 'cheerio';
 import type { Page } from 'playwright';
-import { parseINR, applyWindow } from './util.js';
+import { parseINR, applyWindow, flatText, paid } from './util.js';
 import { openSession, type LoginConfig } from './session.js';
 import type { NormalizedOrder, OrderItem, Charges } from './schema.js';
 
@@ -17,18 +16,6 @@ const orderDetailUrl = (orderId: string): string =>
 const AMAZON_LOGIN: LoginConfig = { loginUrlPattern: /\/ap\/signin/, authMarker: 'text=/Your Orders/i' };
 
 const ORDER_NO = /40[0-9]-\d{7}-\d{7}/;
-
-/** Actual amount paid = the lowest value in a run of `₹X₹Y…` (paid vs struck MRP). */
-function paid(prices: string): number {
-  const nums = (prices.match(/₹[\d,]+/g) ?? []).map(parseINR);
-  return nums.length ? Math.min(...nums) : 0;
-}
-
-function flatText(html: string): string {
-  const $ = cheerio.load(html);
-  $('script, style').remove();
-  return $('body').text().replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
-}
 
 /** List dates carry no year; infer the most recent past occurrence, at UTC midnight. */
 function listDateToISO(dayMonth: string): string {
@@ -162,14 +149,32 @@ export async function fetchAmazonOrders(opts: { since?: string; limit?: number }
 
     const refs = applyWindow(parseAmazonOrderList(await page.content()), opts);
     const orders: NormalizedOrder[] = [];
+    // One unreadable order must not void the whole batch. Some order-tracking
+    // URLs resolve to a download rather than a page (Playwright throws
+    // "Download is starting"), which previously threw out of the loop and
+    // discarded every order already parsed.
+    const failures: string[] = [];
     for (const ref of refs) {
+     try {
       await page.goto(orderDetailUrl(ref.orderId), { waitUntil: 'domcontentloaded' });
       // The order-tracking page only shows a summary; the itemized bill lives in
       // a client-side panel that's in the DOM but hidden until this button is
       // clicked (it's a `role="link"` button, not a real navigable href).
-      await page.getByText('View order details', { exact: true }).first().click({ timeout: 15_000 }).catch(() => undefined);
+      // The page is client-rendered, so the button does not exist yet at
+      // domcontentloaded — wait for it instead of clicking into an empty DOM.
+      // The failure is no longer swallowed: a silent no-op click used to surface
+      // much later as a confusing "Bill summary never appeared" timeout.
+      const viewDetails = page.getByText('View order details', { exact: true }).first();
+      await viewDetails.waitFor({ state: 'visible', timeout: 30_000 });
+      await viewDetails.click({ timeout: 15_000 });
       await page.waitForSelector('text=/Bill summary/i', { timeout: 30_000 });
       orders.push(parseAmazonNowDetail(await page.content()));
+     } catch (e) {
+      failures.push(`${ref.orderId}: ${(e as Error).message.split('\n')[0]}`);
+     }
+    }
+    if (failures.length) {
+      console.error(`[amazon] ${failures.length}/${refs.length} order(s) could not be read:\n  ${failures.join('\n  ')}`);
     }
     return orders;
   } finally {
