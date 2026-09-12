@@ -88,3 +88,37 @@ describe('createExpense', () => {
       .rejects.toThrow(/400/);
   });
 });
+
+describe('Splitwise Pro gating', () => {
+  // Splitwise put third-party API access behind a paid plan, and the raw body is
+  // not actionable. Posting is opt-in, so this error has to say what to do.
+  const proBody = {
+    errors: {
+      base: [
+        "This app can't access Splitwise right now because its developer doesn't have an active Splitwise Pro subscription. Please contact the app's developer for help.",
+      ],
+    },
+  };
+
+  it('explains the Pro requirement instead of dumping the HTTP body', async () => {
+    mockFetchOnce(proBody, false, 403);
+    await expect(findGroup('key', 'Flatmates')).rejects.toThrow(/Splitwise Pro subscription/i);
+  });
+
+  it('names the account that needs the subscription', async () => {
+    mockFetchOnce(proBody, false, 403);
+    await expect(findGroup('key', 'Flatmates')).rejects.toThrow(/dev\.splitwise\.com/i);
+  });
+
+  it('tells the user their computed split is not lost', async () => {
+    mockFetchOnce(proBody, false, 403);
+    await expect(findGroup('key', 'Flatmates')).rejects.toThrow(/nothing was posted/i);
+  });
+
+  it('leaves other API failures reported verbatim', async () => {
+    mockFetchOnce({ errors: { base: ['Invalid API request: you are not logged in'] } }, false, 401);
+    const err = await findGroup('key', 'Flatmates').catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/HTTP 401/);
+    expect((err as Error).message).not.toMatch(/Splitwise Pro/i);
+  });
+});

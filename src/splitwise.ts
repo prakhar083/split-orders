@@ -17,6 +17,17 @@ async function api<T>(apiKey: string, path: string, init: RequestInit = {}): Pro
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    // Splitwise gates third-party API access behind a paid plan. The raw body
+    // blames "the app's developer", which is the user's own dev.splitwise.com
+    // account here — so say that, and say the computed split survives.
+    if (res.status === 403 && /Pro subscription/i.test(body)) {
+      throw new Error(
+        'Splitwise rejected the API key: posting through the API needs an active ' +
+          'Splitwise Pro subscription on the account that registered the key at ' +
+          'https://dev.splitwise.com. Nothing was posted — the computed split is ' +
+          'saved and can be posted with --post once Pro is active.',
+      );
+    }
     throw new Error(`Splitwise API ${path} failed: HTTP ${res.status}${body ? ` — ${body}` : ''}`);
   }
   return res.json() as Promise<T>;
