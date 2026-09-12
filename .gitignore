@@ -4,3 +4,4 @@ dist/
 *.log
 config.json
 rules.json
+*-split-results.json
