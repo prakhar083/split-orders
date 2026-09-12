@@ -30,7 +30,8 @@ export function computeSplit(order: NormalizedOrder, rules: Rules): SplitResult 
   const sharedRatio = totalSubtotal > 0 ? Math.min(1, sharedSubtotal / totalSubtotal) : 0;
 
   const c = order.charges;
-  const fullySharedFees = (c.deliveryFee ?? 0) + (c.packagingFee ?? 0) + (c.taxes ?? 0) + (c.tip ?? 0);
+  const fullySharedFees =
+    (c.deliveryFee ?? 0) + (c.packagingFee ?? 0) + (c.taxes ?? 0) + (c.tip ?? 0) + (c.otherFees ?? 0);
   const proratedDiscount = (c.discount ?? 0) * sharedRatio;
 
   const splitAmount = round2(sharedSubtotal + fullySharedFees - proratedDiscount);

@@ -14,6 +14,10 @@ export interface Charges {
   packagingFee?: number;
   discount?: number;
   tip?: number;
+  /** Charged fees that don't map to a named field (e.g. a late-night or
+   *  bad-weather surcharge). Kept explicit so reconciliation stays honest
+   *  instead of absorbing them into a bogus discount. */
+  otherFees?: number;
 }
 
 export interface NormalizedOrder {
@@ -44,7 +48,13 @@ export function validateOrder(o: unknown): string[] {
 export function reconcileCharges(o: NormalizedOrder): { ok: boolean; expected: number; diff: number } {
   const c = o.charges;
   const expected =
-    c.subtotal + (c.taxes ?? 0) + (c.deliveryFee ?? 0) + (c.packagingFee ?? 0) + (c.tip ?? 0) - (c.discount ?? 0);
+    c.subtotal +
+    (c.taxes ?? 0) +
+    (c.deliveryFee ?? 0) +
+    (c.packagingFee ?? 0) +
+    (c.tip ?? 0) +
+    (c.otherFees ?? 0) -
+    (c.discount ?? 0);
   const diff = Math.round((o.grandTotal - expected) * 100) / 100;
   return { ok: Math.abs(diff) <= 1, expected, diff };
 }

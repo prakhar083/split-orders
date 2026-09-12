@@ -1,6 +1,45 @@
 import { fetchAmazonOrders } from './amazon.js';
+import { fetchBlinkitOrders } from './blinkit.js';
 import { mapZeptoOrders } from './zepto.js';
 import type { NormalizedOrder } from './schema.js';
+
+export interface FetchWindow { since?: string; limit?: number }
+export type Fetcher = (opts: FetchWindow) => Promise<NormalizedOrder[]>;
+
+/** Sources this CLI can scrape itself. Zepto is deliberately absent: it comes
+ *  from the official MCP, and its payloads enter via --map-zepto instead. */
+export const FETCHERS: Record<string, Fetcher> = {
+  amazon: fetchAmazonOrders,
+  blinkit: fetchBlinkitOrders,
+};
+
+/** Fetch each requested source, isolating failures so one broken source
+ *  cannot take the others' orders down with it. */
+export async function fetchFromSources(
+  sources: string[],
+  opts: FetchWindow,
+  fetchers: Record<string, Fetcher> = FETCHERS,
+): Promise<{ orders: NormalizedOrder[]; errors: string[] }> {
+  const orders: NormalizedOrder[] = [];
+  const errors: string[] = [];
+  for (const source of sources) {
+    const fetcher = fetchers[source];
+    if (!fetcher) {
+      errors.push(
+        source === 'zepto'
+          ? 'zepto: not scraped by this CLI — fetch it via the Zepto MCP and pipe the details through --map-zepto'
+          : `${source}: unknown source (known: ${Object.keys(fetchers).join(', ') || 'none'})`,
+      );
+      continue;
+    }
+    try {
+      orders.push(...(await fetcher(opts)));
+    } catch (e) {
+      errors.push(`${source}: ${(e as Error).message}`);
+    }
+  }
+  return { orders, errors };
+}
 
 export function parseArgs(argv: string[]): { sources: string[]; since?: string; limit?: number; mapZepto: boolean } {
   const out: { sources: string[]; since?: string; limit?: number; mapZepto: boolean } = { sources: [], mapZepto: false };
@@ -40,12 +79,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const orders: NormalizedOrder[] = [];
-  const errors: string[] = [];
-  if (args.sources.includes('amazon')) {
-    try { orders.push(...(await fetchAmazonOrders(args))); }
-    catch (e) { errors.push(`amazon: ${(e as Error).message}`); }
-  }
+  const { orders, errors } = await fetchFromSources(args.sources, args);
   if (errors.length) console.error(errors.join('\n'));
   process.stdout.write(JSON.stringify(orders, null, 2));
 }

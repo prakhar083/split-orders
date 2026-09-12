@@ -11,6 +11,10 @@ const START: Record<string, string> = {
   // Amazon Now (quick-commerce grocery) orders list. Grocery-only, so no "now"
   // badge filtering is needed.
   amazon: 'https://www.amazon.in/tez/browse/yourOrders?qcbrand=qqfsWw9RkO',
+  // Blinkit's order history. This is only a starting point — the browser opens
+  // headed and you navigate wherever you need before capturing, so a changed
+  // route here is not fatal.
+  blinkit: 'https://blinkit.com/account/orders',
 };
 
 function prompt(q: string): Promise<void> {
@@ -21,7 +25,7 @@ function prompt(q: string): Promise<void> {
 async function main(): Promise<void> {
   const [source, kind] = process.argv.slice(2);
   if (!source || !kind || !START[source] || !['list', 'detail'].includes(kind)) {
-    console.error('Usage: npx tsx src/capture.ts amazon <list|detail>');
+    console.error(`Usage: npx tsx src/capture.ts <${Object.keys(START).join('|')}> <list|detail>`);
     process.exit(2);
     return;
   }

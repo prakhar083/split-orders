@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, validateWindow } from '../src/cli.js';
+import { parseArgs, validateWindow, fetchFromSources } from '../src/cli.js';
 
 describe('parseArgs', () => {
   it('parses sources, since, and limit', () => {
@@ -20,5 +20,38 @@ describe('validateWindow', () => {
   });
   it('skips the window requirement in --map-zepto mode', () => {
     expect(validateWindow({ mapZepto: true })).toEqual([]);
+  });
+});
+
+describe('fetchFromSources', () => {
+  const order = (source: string) => ({ source, orderId: `${source}-1` }) as never;
+
+  it('collects orders from every requested source', async () => {
+    const got = await fetchFromSources(['amazon', 'blinkit'], {}, {
+      amazon: async () => [order('amazon')],
+      blinkit: async () => [order('blinkit')],
+    });
+    expect(got.orders.map(o => o.source)).toEqual(['amazon', 'blinkit']);
+    expect(got.errors).toEqual([]);
+  });
+
+  it('isolates a failing source so the others still return', async () => {
+    const got = await fetchFromSources(['amazon', 'blinkit'], {}, {
+      amazon: async () => { throw new Error('boom'); },
+      blinkit: async () => [order('blinkit')],
+    });
+    expect(got.orders.map(o => o.source)).toEqual(['blinkit']);
+    expect(got.errors).toEqual(['amazon: boom']);
+  });
+
+  it('points zepto at the MCP path instead of reporting it as unknown', async () => {
+    const got = await fetchFromSources(['zepto'], {}, {});
+    expect(got.orders).toEqual([]);
+    expect(got.errors[0]).toMatch(/--map-zepto/);
+  });
+
+  it('reports a genuinely unknown source', async () => {
+    const got = await fetchFromSources(['swiggy'], {}, { amazon: async () => [] });
+    expect(got.errors[0]).toMatch(/unknown source/);
   });
 });
