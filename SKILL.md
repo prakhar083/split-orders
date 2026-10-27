@@ -11,14 +11,14 @@ shared amount per order, and post those as equal-split Splitwise expenses. The f
 flow is fetch → review → split → confirm → post.
 
 **Project directory (always cd here first — this skill may be invoked from any cwd):**
-`~/Desktop/Personal/split-orders`
+`~/split-orders`
 
 ## One-time setup
 
 1. Add the official Zepto MCP:
    `claude mcp add --transport http --scope user zepto https://mcp.zepto.co.in/mcp`
    Then complete the OAuth login (Indian mobile) when prompted.
-2. `cd ~/Desktop/Personal/split-orders && npm install && npx playwright install chromium`.
+2. `cd ~/split-orders && npm install && npx playwright install chromium`.
 3. First Amazon and Blinkit runs each open a browser for you to log in (incl. OTP);
    the sessions are saved under `.sessions/<source>/` and reused afterward.
 4. *Only if you intend to post:* copy `config.example.json` to `config.json` and fill
@@ -28,7 +28,7 @@ flow is fetch → review → split → confirm → post.
 
 ## Running
 
-`cd ~/Desktop/Personal/split-orders` first, always. Ask the user three things
+`cd ~/split-orders` first, always. Ask the user three things
 before fetching:
 - the window (a `--since` date and/or a `--limit` count),
 - which sources to include,

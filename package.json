@@ -1,17 +1,22 @@
 {
   "name": "split-orders",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
+  "description": "Claude Code skill that pulls quick-commerce orders (Zepto, Amazon Now, Blinkit), separates shared from personal items, and posts the split to Splitwise.",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "mcp",
+    "splitwise",
+    "playwright",
+    "zepto",
+    "blinkit"
+  ],
+  "author": "Prakhar Vijay",
+  "license": "MIT",
   "type": "module",
   "devDependencies": {
     "@types/node": "^26.1.0",
@@ -22,5 +27,10 @@
   "dependencies": {
     "cheerio": "^1.2.0",
     "playwright": "^1.61.1"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prakhar083/split-orders"
   }
 }
